@@ -7,43 +7,58 @@ import mongoose from "mongoose";
 dotenv.config();
 
 const app = express();
+
 app.use(express.json());
+
+/* ---------------- DATABASE ---------------- */
 
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("MongoDB Error:", err.message));
+  .catch((err) => console.log(err.message));
+
+/* ---------------- OPENAI ---------------- */
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+/* ---------------- HOME ---------------- */
+
 app.get("/", (req, res) => {
-  res.send("WhatsApp Post-Call Bot Running");
+  res.send("WhatsApp AI Bot Running");
 });
 
-// Meta webhook verify
+/* ---------------- META WEBHOOK VERIFY ---------------- */
+
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
+  if (
+    mode === "subscribe" &&
+    token === process.env.VERIFY_TOKEN
+  ) {
     return res.status(200).send(challenge);
   }
 
   return res.sendStatus(403);
 });
 
-// WhatsApp incoming message auto-reply
+/* ---------------- WHATSAPP MESSAGE WEBHOOK ---------------- */
+
 app.post("/webhook", async (req, res) => {
   try {
     const message =
       req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
-    if (!message) return res.sendStatus(200);
+    if (!message) {
+      return res.sendStatus(200);
+    }
 
     const from = message.from;
+
     const text = message.text?.body || "Hello";
 
     const ai = await openai.chat.completions.create({
@@ -52,7 +67,7 @@ app.post("/webhook", async (req, res) => {
         {
           role: "system",
           content:
-            "You are a helpful WhatsApp business assistant. Reply shortly and professionally.",
+            "You are a helpful business assistant.",
         },
         {
           role: "user",
@@ -67,35 +82,42 @@ app.post("/webhook", async (req, res) => {
 
     return res.sendStatus(200);
   } catch (err) {
-    console.log("WhatsApp Webhook Error:", err.response?.data || err.message);
+    console.log(err.response?.data || err.message);
+
     return res.sendStatus(500);
   }
 });
 
-// Call ended webhook from MacroDroid
-app.post("/call-webhook", async (req, res) => {
+/* ---------------- CALL END AUTO MESSAGE ---------------- */
+
+app.get("/call-trigger", async (req, res) => {
   try {
-    const { number, status } = req.body;
+    const number = req.query.number;
 
     if (!number) {
-      return res.status(400).send("Number missing");
+      return res.send("No Number");
     }
 
-    const cleanNumber = number.replace("+", "").replace(/\s/g, "");
+    const cleanNumber = number
+      .replace("+", "")
+      .replace(/\s/g, "");
 
     const message =
-      "Hi 👋 Thanks for calling. Sorry if I missed your call. Please reply here and I’ll help you shortly.";
+      "Hi 👋 Thanks for calling. Sorry I missed your call. How can I help you?";
 
     await sendWhatsAppMessage(cleanNumber, message);
 
-    console.log("Post-call message sent to:", cleanNumber, status);
+    console.log("Auto message sent:", cleanNumber);
 
-    return res.status(200).send("Message sent");
+    return res.send("Success");
   } catch (err) {
-    console.log("Call Webhook Error:", err.response?.data || err.message);
-    return res.status(500).send("Error");
+    console.log(err.response?.data || err.message);
+
+    return res.send("Error");
   }
 });
+
+/* ---------------- SEND WHATSAPP FUNCTION ---------------- */
 
 async function sendWhatsAppMessage(to, message) {
   await axios.post(
