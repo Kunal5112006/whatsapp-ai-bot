@@ -1,18 +1,20 @@
-export default async function handler(req, res) {
-  const number = req.query.number || req.body?.number || req.body?.phone;
+export default function handler(req, res) {
+  try {
+    const number =
+      req.query?.number ||
+      req.body?.number ||
+      req.body?.phone ||
+      "";
 
-  if (!number) {
-    return res.status(400).json({
-      success: false,
-      message: "No number received"
-    });
+    if (!number) {
+      return res.status(400).send("No number received");
+    }
+
+    console.log("CALL TRIGGER NUMBER:", number);
+
+    return res.status(200).send("Call trigger received: " + number);
+  } catch (err) {
+    console.error("CALL TRIGGER ERROR:", err);
+    return res.status(500).send("Server error: " + err.message);
   }
-
-  console.log("CALL TRIGGER NUMBER:", number);
-
-  return res.status(200).json({
-    success: true,
-    message: "Call trigger received",
-    number
-  });
 }
