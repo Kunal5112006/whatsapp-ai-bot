@@ -1,4 +1,6 @@
-export default function handler(req, res) {
+import axios from "axios";
+
+export default async function handler(req, res) {
   try {
     const number =
       req.query?.number ||
@@ -10,11 +12,36 @@ export default function handler(req, res) {
       return res.status(400).send("No number received");
     }
 
-    console.log("CALL TRIGGER NUMBER:", number);
+    const cleanNumber = String(number)
+      .replace("+", "")
+      .replace(/\s/g, "");
 
-    return res.status(200).send("Call trigger received: " + number);
+    const message =
+      "Hi 👋 Thanks for calling. Sorry I missed your call. How can I help you?";
+
+    await axios.post(
+      `https://graph.facebook.com/v22.0/${process.env.PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: cleanNumber,
+        type: "text",
+        text: {
+          body: message,
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("Auto WhatsApp message sent:", cleanNumber);
+
+    return res.status(200).send("Success: message sent to " + cleanNumber);
   } catch (err) {
-    console.error("CALL TRIGGER ERROR:", err);
-    return res.status(500).send("Server error: " + err.message);
+    console.log("CALL TRIGGER ERROR:", err.response?.data || err.message);
+    return res.status(500).send("Error sending WhatsApp message");
   }
 }
